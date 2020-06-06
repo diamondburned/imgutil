@@ -23,7 +23,12 @@ func Resize(maxW, maxH int) Processor {
 }
 
 // Round renders an anti-aliased round image.
-func Round(img image.Image) image.Image {
+func Round() Processor {
+	// for documentation purposes
+	return round
+}
+
+func round(img image.Image) image.Image {
 	// Scale up
 	oldbounds := img.Bounds()
 	const scale = 2
