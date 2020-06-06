@@ -23,44 +23,45 @@ func Resize(maxW, maxH int) Processor {
 }
 
 // Round renders an anti-aliased round image.
-func Round() Processor {
-	// for documentation purposes
-	return round
-}
+func Round(antialias bool) Processor {
+	return func(img image.Image) image.Image {
+		// Scale up
+		oldbounds := img.Bounds()
+		const scale = 2
 
-func round(img image.Image) image.Image {
-	// Scale up
-	oldbounds := img.Bounds()
-	const scale = 2
+		// only bother anti-aliasing if it's not a paletted image.
+		var _, paletted = img.(*image.Paletted)
+		antialias = !paletted && antialias
 
-	// only bother anti-aliasing if it's not a paletted image.
-	var _, paletted = img.(*image.Paletted)
-	if !paletted {
-		img = imaging.Resize(img, oldbounds.Dx()*scale, oldbounds.Dy()*scale, imaging.Lanczos)
+		if antialias {
+			img = imaging.Resize(img, oldbounds.Dx()*scale, oldbounds.Dy()*scale, imaging.Lanczos)
+		}
+
+		r := img.Bounds().Dx() / 2
+
+		var dst draw.Image
+
+		switch img.(type) {
+		// alpha-supported:
+		case *image.RGBA, *image.RGBA64, *image.NRGBA, *image.NRGBA64:
+			dst = img.(draw.Image)
+		default:
+			dst = image.NewRGBA(image.Rect(
+				0, 0,
+				r*2, r*2,
+			))
+		}
+
+		roundTo(img, dst, r)
+
+		// Return the original image without downscaling if it's not
+		// anti-aliased.
+		if !antialias {
+			return dst
+		}
+
+		return imaging.Resize(dst, oldbounds.Dx(), oldbounds.Dy(), imaging.Lanczos)
 	}
-
-	r := img.Bounds().Dx() / 2
-
-	var dst draw.Image
-
-	switch img.(type) {
-	// alpha-supported:
-	case *image.RGBA, *image.RGBA64, *image.NRGBA, *image.NRGBA64:
-		dst = img.(draw.Image)
-	default:
-		dst = image.NewRGBA(image.Rect(
-			0, 0,
-			r*2, r*2,
-		))
-	}
-
-	roundTo(img, dst, r)
-
-	if paletted {
-		return dst
-	}
-
-	return imaging.Resize(dst, oldbounds.Dx(), oldbounds.Dy(), imaging.Lanczos)
 }
 
 // roundTo round-crops an image without anti-aliasing.
