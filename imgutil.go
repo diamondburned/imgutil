@@ -13,16 +13,22 @@ import (
 )
 
 func ensurePaletteTransparent(palette color.Palette) color.Palette {
+	// If we already have a transparent color, then we don't need to add any
+	// more.
+	for _, c := range palette {
+		if c == color.Transparent {
+			return palette
+		}
+	}
+
 	// TODO: properly quantize
 	if len(palette) > 255 {
 		palette = palette[:255]
 	}
-	palette = append(palette, color.Transparent)
-
-	return palette
+	return append(palette, color.Transparent)
 }
 
-var pngEncoder = png.Encoder{
+var PNGEncoder = &png.Encoder{
 	// Prefer speed over compression, since cache is slightly more optimized
 	// now.
 	CompressionLevel: png.NoCompression,
@@ -85,7 +91,7 @@ func ProcessStream(dst io.Writer, src io.Reader, processors []Processor) error {
 		img = proc(img)
 	}
 
-	if err := pngEncoder.Encode(dst, img); err != nil {
+	if err := PNGEncoder.Encode(dst, img); err != nil {
 		return errors.Wrap(err, "Failed to encode")
 	}
 
