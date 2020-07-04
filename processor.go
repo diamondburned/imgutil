@@ -22,37 +22,43 @@ func Resize(maxW, maxH int) Processor {
 	}
 }
 
-// Round renders an anti-aliased round image.
+// Round renders an anti-aliased round image. This image crops the source and
+// makes it a square.
 func Round(antialias bool) Processor {
 	return func(img image.Image) image.Image {
 		// Scale up
-		oldbounds := img.Bounds()
 		const scale = 2
 
 		// only bother anti-aliasing if it's not a paletted image.
 		var _, paletted = img.(*image.Paletted)
 		antialias = !paletted && antialias
 
+		// Get the min dimensions.
+		var mind = img.Bounds().Dx()
+		if y := img.Bounds().Dy(); y < mind {
+			mind = y
+		}
+
+		// Crop the image to be a square.
+		img = imaging.CropAnchor(img, mind, mind, imaging.Top)
+
 		if antialias {
-			img = imaging.Resize(img, oldbounds.Dx()*scale, oldbounds.Dy()*scale, imaging.Lanczos)
+			mind *= scale
+			img = imaging.Resize(img, mind, mind, imaging.Lanczos)
 		}
 
-		r := img.Bounds().Dx() / 2
+		var dst = image.NewRGBA(image.Rect(0, 0, mind, mind))
+		// var dst draw.Image
 
-		var dst draw.Image
+		// switch img.(type) {
+		// // alpha-supported, reusable image:
+		// case *image.RGBA, *image.RGBA64, *image.NRGBA, *image.NRGBA64:
+		// 	dst = img.(draw.Image)
+		// default:
+		// 	dst = image.NewRGBA(image.Rect(0, 0, mind, mind))
+		// }
 
-		switch img.(type) {
-		// alpha-supported:
-		case *image.RGBA, *image.RGBA64, *image.NRGBA, *image.NRGBA64:
-			dst = img.(draw.Image)
-		default:
-			dst = image.NewRGBA(image.Rect(
-				0, 0,
-				r*2, r*2,
-			))
-		}
-
-		roundTo(img, dst, r)
+		roundTo(img, dst, mind/2) // radius
 
 		// Return the original image without downscaling if it's not
 		// anti-aliased.
@@ -60,7 +66,9 @@ func Round(antialias bool) Processor {
 			return dst
 		}
 
-		return imaging.Resize(dst, oldbounds.Dx(), oldbounds.Dy(), imaging.Lanczos)
+		// Get the original size.
+		mind /= scale
+		return imaging.Resize(dst, mind, mind, imaging.Lanczos)
 	}
 }
 
