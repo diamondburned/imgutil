@@ -37,14 +37,28 @@ var PNGEncoder = &png.Encoder{
 
 // ProcessAnimationStream works similarly to ProcessStream, but parses a GIF.
 func ProcessAnimationStream(dst io.Writer, src io.Reader, processors []Processor) error {
+	GIF, err := ProcessAnimation(src, processors)
+	if err != nil {
+		return err
+	}
+
+	if err := gif.EncodeAll(dst, GIF); err != nil {
+		return errors.Wrap(err, "Failed to encode GIF")
+	}
+
+	return nil
+}
+
+// ProcessAnimation works similarly to Process, but parses a GIF.
+func ProcessAnimation(src io.Reader, processors []Processor) (*gif.GIF, error) {
 	GIF, err := gif.DecodeAll(src)
 	if err != nil {
-		return errors.Wrap(err, "Failed to decode GIF")
+		return nil, errors.Wrap(err, "Failed to decode GIF")
 	}
 
 	// Error if no frames.
 	if len(GIF.Image) == 0 {
-		return errors.New("GIF has no frames.")
+		return nil, errors.New("GIF has no frames.")
 	}
 
 	// Make a temporary frame to draw over.
@@ -82,29 +96,15 @@ func ProcessAnimationStream(dst io.Writer, src io.Reader, processors []Processor
 	GIF.Config.Width = bounds.Dx()
 	GIF.Config.Height = bounds.Dy()
 
-	if err := gif.EncodeAll(dst, GIF); err != nil {
-		return errors.Wrap(err, "Failed to encode GIF")
-	}
-
-	return nil
-}
-
-func cpypalette(src *image.Paletted) *image.Paletted {
-	cpy := image.NewPaletted(src.Rect, src.Palette)
-	draw.Draw(cpy, cpy.Rect, src, cpy.Rect.Min, draw.Src)
-	return cpy
+	return GIF, nil
 }
 
 // ProcessStream takes a processor and run them through the image decoded from
 // the stream. The returned bytes are PNG-encoded and uncompressed.
 func ProcessStream(dst io.Writer, src io.Reader, processors []Processor) error {
-	img, _, err := image.Decode(src)
+	img, err := Process(src, processors)
 	if err != nil {
-		return errors.Wrap(err, "Failed to decode")
-	}
-
-	for _, proc := range processors {
-		img = proc(img)
+		return err
 	}
 
 	if err := PNGEncoder.Encode(dst, img); err != nil {
@@ -112,6 +112,22 @@ func ProcessStream(dst io.Writer, src io.Reader, processors []Processor) error {
 	}
 
 	return nil
+}
+
+// Process takes a processor and run them through the image decoded from the
+// stream. The returned image is the processed image.
+func Process(src io.Reader, processors []Processor) (image.Image, error) {
+	img, _, err := image.Decode(src)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to decode")
+	}
+
+	for _, proc := range processors {
+		img = proc(img)
+	}
+
+	return img, nil
+
 }
 
 // Prepend prepends p1 before pN.

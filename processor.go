@@ -8,11 +8,11 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-type Processor func(image.Image) image.Image
+type Processor func(image.Image) *image.NRGBA
 
 // Resize uses MaxSize to calculate and resize the image accordingly.
 func Resize(maxW, maxH int) Processor {
-	return func(img image.Image) image.Image {
+	return func(img image.Image) *image.NRGBA {
 		bounds := img.Bounds()
 		imgW, imgH := bounds.Dx(), bounds.Dy()
 
@@ -25,7 +25,7 @@ func Resize(maxW, maxH int) Processor {
 // Round renders an anti-aliased round image. This image crops the source and
 // makes it a square.
 func Round(antialias bool) Processor {
-	return func(img image.Image) image.Image {
+	return func(img image.Image) *image.NRGBA {
 		// Scale up
 		const scale = 2
 
@@ -47,28 +47,9 @@ func Round(antialias bool) Processor {
 			img = imaging.Resize(img, mind, mind, imaging.Lanczos)
 		}
 
-		var dst draw.Image
+		var dst = image.NewNRGBA(image.Rect(0, 0, mind, mind))
 
-		switch img := img.(type) {
-		// List of alpha-supported, reusable image. We include paletted because
-		// we assume the paletted image will have an alpha channel.
-		case *image.RGBA, *image.RGBA64, *image.NRGBA, *image.NRGBA64:
-			dst = img.(draw.Image)
-
-		// Paletted works, but we need to add an alpha channel.
-		case *image.Paletted:
-			img.Palette = ensurePaletteTransparent(img.Palette)
-			dst = img
-
-		// This is fine most of the time, as Resize will copy the image into
-		// another container with alpha supported.
-		case draw.Image:
-			dst = img
-
-		default:
-			dst = image.NewRGBA(image.Rect(0, 0, mind, mind))
-		}
-
+		// Actually do the round-corners stuff.
 		roundTo(img, dst, mind/2) // radius
 
 		// Return the original image without downscaling if it's not
